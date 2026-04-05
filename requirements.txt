@@ -2,7 +2,6 @@
 
 # Database connectors
 mysql-connector-python>=8.0.0
-clickhouse-driver>=0.2.0
 
 # HTTP requests and web scraping
 requests>=2.28.0

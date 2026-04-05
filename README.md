@@ -16,6 +16,7 @@ A comprehensive benchmark framework for evaluating analytical database performan
 - [Supported Database Engines](#supported-database-engines)
 - [Prerequisites & System Requirements](#prerequisites--system-requirements)
 - [Quick Start Guide](#quick-start-guide)
+- [TiKV vs TiFlash Benchmarking](#tikv-vs-tiflash-benchmarking)
 - [Reproducibility](#reproducibility)
 - [Benchmark Methodology](#benchmark-methodology)
 - [Performance Results](#performance-results)
@@ -218,11 +219,20 @@ tiup playground
 # Load data
 python3 load/load_data.py --database tidb
 
-# Run benchmark
+# Run benchmark with default CBO engine selection (TiDB optimizer chooses between TiKV and TiFlash)
 python3 run_benchmarks.py --database tidb
+
+# Force TiKV-only execution (row storage)
+python3 run_benchmarks.py --database tidb --engine tikv
+
+# Force TiFlash-only execution (columnar storage)
+python3 run_benchmarks.py --database tidb --engine tiflash
+
+# Run comparison mode (TiKV vs TiFlash sequential comparison)
+python3 run_benchmarks.py --database tidb --engine compare
 ```
 
-> **Note**: TiDB uses TiUP for cluster management rather than Docker Compose. TiUP provides better resource management and TiFlash integration for analytical workloads.
+> **Note**: TiDB uses TiUP for cluster management rather than Docker Compose. TiUP provides better resource management and TiFlash integration for analytical workloads. The `--engine` parameter allows you to control which storage engine is used for benchmarking, with `both` as the default (CBO chooses), `tikv` or `tiflash` to force a specific engine, and `compare` to run both sequentially and show performance comparison tables.
 
 #### StarRocks
 
@@ -246,6 +256,67 @@ python3 run_benchmarks.py --database starrocks
 **ClickHouse**: Generally starts quickly but may need a few seconds for metadata initialization.
 
 **MariaDB ColumnStore**: Requires proper columnstore engine initialization which can take 30-60 seconds.
+
+## TiKV vs TiFlash Benchmarking
+
+This benchmark suite now includes support for comparing performance between TiDB's storage engines:
+
+- **TiKV**: Row-oriented storage optimized for OLTP workloads
+- **TiFlash**: Columnar storage optimized for OLAP workloads
+- **Default CBO (Cost-Based Optimizer)**: TiDB automatically chooses the optimal engine based on query cost estimates
+
+### Engine Selection Options
+
+The `--engine` parameter provides precise control over which storage engine is used for benchmarking:
+
+| Option | Behavior | Use Case |
+|--------|----------|----------|
+| `both` (default) | TiDB's CBO optimizer chooses between TiKV and TiFlash automatically | Real-world hybrid workload simulation |
+| `tikv` | Force execution on TiKV (row storage) | Baseline row-store performance |
+| `tiflash` | Force execution on TiFlash (columnar storage) | Columnar storage performance |
+| `compare` | Run TiKV then TiFlash sequentially and generate comparison tables | Direct engine performance comparison |
+
+### Usage Examples
+
+```bash
+# Default behavior (CBO chooses engine)
+python3 run_benchmarks.py --database tidb
+
+# Force TiKV-only execution
+python3 run_benchmarks.py --database tidb --engine tikv
+
+# Force TiFlash-only execution  
+python3 run_benchmarks.py --database tidb --engine tiflash
+
+# Run comparison mode (TiKV vs TiFlash)
+python3 run_benchmarks.py --database tidb --engine compare
+```
+
+> **Note**: The `--engine` parameter is only applicable when `--database tidb` is specified. For other databases, this parameter will be ignored.
+
+### Comparison Mode Output
+
+When using `--engine compare`, the benchmark runs all queries twice (TiKV then TiFlash) and generates:
+
+1. **TiKV Results Table**: Execution times for each query on TiKV
+2. **TiFlash Results Table**: Execution times for each query on TiFlash
+3. **Performance Comparison Table**: Detailed comparison showing:
+   - Percentage improvement (positive/negative)
+   - Speedup factor (TiKV time / TiFlash time)
+   - Aggregate totals across all queries
+
+### Expected Results
+
+- **TiFlash** typically shows significant performance improvements for analytical queries
+- Complex analytical queries (14, 15) often show the largest improvements
+- Simple queries may have smaller differences or slightly favor TiKV
+- The CBO optimizer (`--engine both`) generally selects TiFlash for analytical queries but may choose TiKV for simpler operations
+
+### Important Notes
+
+- **TiFlash Replica Synchronization**: Ensure TiFlash replicas are fully synchronized before benchmarking. The data loading script creates TiFlash replicas on all tables, but synchronization may take additional time depending on system load.
+- **Backward Compatibility**: The `--engine both` option maintains the original benchmark behavior, ensuring backward compatibility with existing workflows.
+- **Engine-Specific Performance**: Results may vary based on TiDB version, hardware configuration, and data distribution. Always run comparison mode to understand engine performance characteristics for your specific environment.
 
 ## Reproducibility
 

@@ -1,3 +1,6 @@
 .DS_Store
 csv/
 tidb-lightning.log
+.venv
+__pycache__
+.ruff_cache
